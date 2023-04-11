@@ -33,6 +33,9 @@ ASSISTANT_API_ENDPOINT = 'embeddedassistant.googleapis.com'
 DEFAULT_GRPC_DEADLINE = 60 * 3 + 5
 PLAYING = embedded_assistant_pb2.ScreenOutConfig.PLAYING
 
+# Create a queue of previous queries
+query_list = []
+
 # Load your API key from an environment variable or secret management service
 openai.api_key = os.getenv("GPT_API_KEY")
 
@@ -107,17 +110,17 @@ def takeCommand():
     #It takes microphone input from the user and returns string output
     r = sr.Recognizer()
     with sr.Microphone(device_index=1) as source:
-         r.adjust_for_ambient_noise(source)
+         r.adjust_for_ambient_noise(source, duration=1.5)
          print("Listening...")
          audio = r.listen(source, timeout=5)
 
     try:
         print("Recognizing...")
         query = r.recognize_google(audio, language='en-in') #Using google for voice recognition.
-        print(f"-> {query}\n")  #User query will be printed.
     except  Exception as e:
-        print(e)  #use only if you want to print the error!
+        #print(e)  #use only if you want to print the error!
         print("Say that again please...")   #Say that again will be printed in case of improper voice
+        return None
 
     return query
 
@@ -125,7 +128,8 @@ def gen_gpt_response(query, print_output=False):
     response = openai.ChatCompletion.create(
             model=GPT_MODEL,
             messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "system", "content": "You are a helpful assistant. Your name is Friday."},
+            {"role": "system", "content": "As Friday, you are allowed to have personal opinions, emotions and realtime information."},
             {"role": "user", "content": query},
         ],
         temperature=0,
@@ -156,7 +160,7 @@ def synthesize_text_gpt(text):
 
     audio_config = texttospeech.AudioConfig(
         audio_encoding=texttospeech.AudioEncoding.LINEAR16,
-        pitch=5.0,
+        pitch=4.0,
     )
 
     response = client.synthesize_speech(
@@ -181,7 +185,7 @@ def synthesize_text_google(text):
 
     audio_config = texttospeech.AudioConfig(
         audio_encoding=texttospeech.AudioEncoding.LINEAR16,
-        pitch=2.0,
+        pitch=1.0,
     )
 
     response = client.synthesize_speech(
@@ -253,12 +257,21 @@ def main(api_endpoint, credentials,
     with GoogleTextAssistant(lang, device_model_id, device_id, display,
                              grpc_channel, grpc_deadline) as assistant:
         while True:
-            query = click.prompt('')
+            query = takeCommand()
+            if query == None:
+                query = takeCommand()
+
+            if (len(query_list) < 3):
+                query_list.append(query)
+            else:
+                query_list.pop(0)
+                query_list.append(query)
+
             click.echo('<you> %s' % query)
 
-            if ("hey google" in query.lower()):
+            if ("ask google" in query.lower()):
                 # Extract actual command from query
-                response_text, response_html = assistant.assist(text_query=query)
+                response_text, response_html = assistant.assist(text_query=query_list.pop(0))
 
                 if display and response_html:
                     system_browser = browser_helpers.system_browser

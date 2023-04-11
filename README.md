@@ -17,6 +17,3 @@ Create a hybrid assistant using GPT-3 and Google Assistant APIs and using Google
 - OpenAI
 - PyDub
 - Misc: Click, OS, Json, Logging,
-
-
-*SpeechRecognition does not work yet. Currently has microphone issues on Raspberry Pi.*
